@@ -1,0 +1,99 @@
+# Notes on Geth Code
+
+It doesn't seem like anything actually uses swarm outside of swarm. 
+Running a grep within the implementation directory primarily files w/in the swarm dir
+```
+grep -rl "github.com/ethereum/go-ethereum/swarm*" .
+```
+
+## P2P Servers
+Trying to understand the relationship of cmd/main.go and the parts of the code 
+that actually handle the networking layer. 
+Main.go creates a node which seems to be the "main" object involved - traced code
+to [1]
+
+Found instance of p2p servers being initalized in node.go [1]
+
+When initialized, static nodes, trusted noes, and a nodeDb are all loaded in via json
+Unfortunately, I can't find where that json lives... It should live in the DataDir
+which is "the file system folder the node should use for any data storage requirements".
+Its possible this means that the node must be initialized in order to run? 
+Couldn't find any json files in "~/Library/Ethereum/geth"
+
+Information regarding the node initialization config lives in [2]
+
+### Server Objects
+Servers hold list of peers as an array of pointers to nodes. 
+See [4:90]
+> `BootstrapNodes []*discover.Node`
+
+Servers have 4 lists of known nodes
+- BoostrapNodes - hardcoded nodes who bring us into the network
+- BoostrapV5Nodes - hardcoded nodes who bring us into the network using the v5 protocol.
+- StaticNodes - nodes that we discover and keep track of. Normally nodes we discover
+will be added here.There is a limit to the number of nodes we can store in our 
+StaticNodes list determined by the peer limit variable (Q: is this k?)
+- TrustedNodes - nodes that we can connect to at anytime, regardless of how many
+peers we have. Trusted Nodes have special privilages in that they DO NOT count towards
+our maximum numbers of peers. Connections are checked every 15s
+
+Server has "AddNode(node)" and "RemoveNode(node)", to build list of known staticNodes
+Functions pass a given node value to the follwing channels 
+- addstatic
+- removestatic
+These channels pass their given nodes to the dialer[4:516]
+
+Server keeps track of queued tasks and schedules appropriately. Invocates all
+"Do" functions for each task. 
+
+
+### Dialer
+Holds a dialTask for every static node known
+Holds a connectionFlag for all nodes being dialed
+
+addStatic will create a dialtask entry for the given node's nodeId, the task 
+contains two pieces of information: 
+1) connection flag is set to "staticDialedConn"
+2) destionation node is set as the given node
+
+DialState.newTasks(...) will return a list of tasks from the dialer to be executed
+by the server. 
+- Dial node
+- Discover node (lookup)
+
+### Dial Tasks
+.dial attempts to create the TCP connection
+server runs connection attempt
+- encryption handshake
+- protocol handshake
+- addpeer
+
+addpeer (TODO: Where/what does this broadcast to?)
+- broadcasts that a peer was added
+- runs the peer (i assume this is just running the protocols with peers
+- when the peer errors out or disconnects, broadcasts that the peer was disconnected
+
+
+#### Who To Dial:
+- if peer length == 0, choose a random bootnode; bootstsrap ourselves into the 
+network
+- Add whatever living nodes we have in our static nodes
+- Half of the nodes we want to dial should be random nodes already in our table
+- Fill extra nodes with nodes from our random lookup buffer, these are the nodes
+returned from a network search done on a random address. 
+- If we still need to find more nodes, perform another random lookup
+
+
+## Takeaways
+If we want to change we who attempt to connect to, we should make changes in the
+dial.newTasks code [5:159]. This is the code that creates the list of tasks for 
+the server on who it should try to connect to and when to perform a node lookup.
+Instead of querying random nodes from our node table and/or our lookup buffer,
+we can target nodes of specific address. 
+
+[SourceNum:LineNum]
+[1]: https://github.com/ethereum/go-ethereum/blob/master/node/node.go
+[2]: https://github.com/ethereum/go-ethereum/blob/master/node/config.go
+[3]: https://github.com/ethereum/go-ethereum/blob/master/p2p/discover/node.go
+[4]: https://github.com/ethereum/go-ethereum/blob/master/p2p/server.go
+[5]: https://github.com/ethereum/go-ethereum/blob/master/p2p/dial.go

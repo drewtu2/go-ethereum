@@ -1,0 +1,146 @@
+# Kademila Networking Protocol
+
+ - Form of distributed hash table to enable nodes in a network to look eachother up
+ - Calculates "Distance" between nodes based on address. 
+    - Distance is calculated by XOR'ing two node IDs, result is an integer
+    - XOR because
+        - distance to itself = 0
+        - symmetric distances
+        - triangle inequality
+    - Addresses are assigned randomly, so neighbors in a network can be 1000's of
+miles apart while addresses really far apart in code can be next to each other in 
+the physical world. 
+
+## Routing Tables
+    - Nodes keep a list for each bit of the node ID. 
+    - In Kademlia terminology, each list is a "k-bucket", each bucket has a list with
+k entries inside (k = system wide constant coresponding to the number of entries in each bucket)
+    - Nodes that can go in the nth list must have a differing nth bit from the node's ID;
+the first n-1 bits must match the node id. 
+    - This means that in that half the network addresses qualify to be added to 
+the first list (only two option, 1 or 0). A quarter of the network addresses 
+qualify to be in the second list, so on, so forth. 
+    - As n increases, the number of nodes in each list decreases and each of the 
+nodes listed in the corresponding list are "closer" in the network to lists holder.
+    - Because there are fewer nodes that qualify to be placed in higher buckets,
+the network closest to us is "fully mapped" since no nodes will need to be dropped 
+    - Conversely, the nodes further away are not mapped as well because they are competing
+for space on list of finite size with much higher competition for space. 
+
+### Adding New Nodes
+    - Kademila prioritizes keeping nodes that have been connected longest because
+it is more likely they will continue to be connected. (Results in more stable network)
+    - When a list is full and a new node is encountered, a node must be dropped
+from the list in order to accomoadate the new node. 
+    - The least recently seen node is PINGed
+    if(node == "alive")
+        place new node in backup "replacement cache"
+    else
+        place new node in k-bucket, drop old node. 
+    - This essentially means that new nodes are not added to a full network unless
+old nodes die. 
+
+## Protocol Messages
+    - PING: verify nodes are still alive
+    - STORE: stores a (key, value) pair in one node
+    - FIND_NODE: the recipient of the request will return the nodes closest to the 
+requested node (based on address). 
+    - FIND_VALUE: Same as FIND_NODE but if the recipient of the request has the 
+requested key in its own store, will return the value. 
+
+    - All protocol messages are sent with a random value from the initiator to 
+to be used as an ACK_ID for the response. 
+
+## Locating Nodes: 
+    - Searches can occur asychronously. Choose "a" nodes closest to your desired 
+node and initiate "find node" requests to them. 
+    - Each node returns their "k" closest nodes to the initiator. 
+    - Initiator compiles a list of the "k" best node responses (closest nodes). 
+    - Initiator then sends "find node" requests to the "k" best nodes
+    - Iteratore until you find target node. 
+
+    The idea here is that nodes fully map out the area nearest to them. 
+    Once you find someone close enough to the requested node, 
+    you will eventually find a node who directly knows the target node. 
+
+## Entry into Network:
+    - In order to join the network, node must go through a "bootstrap" process
+    - Computes random address (not already in use by the network)
+    - Inserts the bootstrap node into one of its k-buckets, then runs "FIND_NODE"
+on its own address. The boostrap node will send the new node all the addresses
+closest to the new nodes address, thus beginning the new nodes understanding of its 
+neighbor nodes. The query also informs other nodes in the network of the new node's 
+presence. 
+
+
+
+# Ethereum and Kademlia
+
+## Differences
+- Ethereum uses signed packets
+- Node ids are public keys
+- No DHT realated features
+- xor distance based on sha3(nodeid)
+
+## Specifics
+- k-bucket size: 16 (each bit level stores 16 addresses)
+- alpha(a): concurrency 3?
+- 8 bits/hop 
+- eviction check interval: 75 ms
+- request timeouts: 300 ms
+- idle bucket-refresh interval: 3600 seconds
+- maximum datagram size: 1280 bytes
+
+With the given specifics, node discovery is employs the protocol described by 
+Maymounkov and Mazieres
+
+https://github.com/ethereum/devp2p/blob/master/rlpx.md#node-discovery 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
+
+
+
+
+
